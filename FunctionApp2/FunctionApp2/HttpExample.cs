@@ -16,8 +16,8 @@ namespace FunctionApp2
             _logger = logger;
         }
 
-        [Function("HttpExample")]
-        public async Task<IActionResult> Run(
+        [Function("CreateTask")]
+        public async Task<IActionResult> CreateTask(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req)
         {
             _logger.LogInformation("Processing POST request.");
@@ -32,6 +32,35 @@ namespace FunctionApp2
             }
 
             return new OkObjectResult($"Task {data.Name} created successfully.");
+        }
+
+        [Function("GetTask")]
+        public async Task<IActionResult> GetTask(
+        [HttpTrigger(AuthorizationLevel.Function, "get", Route = null)] HttpRequest req)
+        {
+            _logger.LogInformation("Processing GET request.");
+
+            string name = req.Query["name"];
+
+            if (string.IsNullOrEmpty(name))
+            {
+                return new BadRequestObjectResult("Please provide 'name' parameter.");
+            }
+
+            var task = new TaskModel("Carlos");
+
+            return new OkObjectResult($"Task {task.Name} {name} retrieved successfully.");
+        }
+
+        [Function("Timer")]
+        public void Run([TimerTrigger("0 */1 * * * *")] TimerInfo myTimer)
+        {
+            _logger.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
+
+            if (myTimer.ScheduleStatus is not null)
+            {
+                _logger.LogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}");
+            }
         }
     }
 }
