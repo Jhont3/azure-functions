@@ -11,6 +11,7 @@ namespace FunctionApp2
     public class HttpExample
     {
         private readonly ILogger<HttpExample> _logger;
+        private static int i = 0;
 
         public HttpExample(ILogger<HttpExample> logger)
         {
@@ -36,11 +37,10 @@ namespace FunctionApp2
                 using (SqlCommand cmd = new SqlCommand(query, conn))
                 {
                     cmd.Parameters.AddWithValue("@name", data.Name);
-                    newId = (int)await cmd.ExecuteScalarAsync();  // Obtener el ID generado
+                    newId = (int)await cmd.ExecuteScalarAsync();
                 }
             }
 
-            // Devolver el nuevo objeto TaskModel con el ID generado
             return new OkObjectResult(new TaskModel(newId, data.Name));
         }
 
@@ -85,9 +85,42 @@ namespace FunctionApp2
             return new OkObjectResult($"Task {task.Name} with ID {task.Id} retrieved successfully.");
         }
 
+        [Function("GetAllTasks")]
+        public async Task<IActionResult> GetAllTasks(
+        [HttpTrigger(AuthorizationLevel.Function, "get", Route = null)] HttpRequest req)
+        {
+            _logger.LogInformation("Processing GET request to retrieve all tasks.");
+
+            string connectionString = Environment.GetEnvironmentVariable("SqlConnectionString");
+            List<TaskModel> tasks = new List<TaskModel>();
+
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+                var query = "SELECT Id, Name FROM Tasks";
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        while (reader.Read())
+                        {
+                            var task = new TaskModel((int)reader["Id"], reader["Name"].ToString());
+                            tasks.Add(task);
+                        }
+                    }
+                }
+            }
+
+            if (tasks.Count == 0)
+            {
+                return new NotFoundObjectResult("No tasks found.");
+            }
+
+            return new OkObjectResult(tasks);
+        }
 
         [Function("Timer")]
-        public void Run([TimerTrigger("0 */1 * * * *")] TimerInfo myTimer)
+        public async Task Run([TimerTrigger("*/10 * * * * *")] TimerInfo myTimer)
         {
             _logger.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
 
@@ -95,6 +128,21 @@ namespace FunctionApp2
             {
                 _logger.LogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}");
             }
+
+            string connectionString = Environment.GetEnvironmentVariable("SqlConnectionString");
+
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+                var query = "INSERT INTO Tasks (Name) VALUES (@name)";
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@name", $"taskTest{i++}");
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            _logger.LogInformation($"Inserted new task: taskTest{i - 1}");
         }
     }
 }
